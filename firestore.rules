@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The whole database is locked to one board document. Everything else is unreadable and unwritable.
+    function isBoard(room) { return room == 'eh-1e3714bf7f41'; }
+
+    function num(x, lo, hi) { return x is number && x >= lo && x <= hi; }
+
+    function goalOk(g) {
+      return g is map
+        && g.keys().hasOnly(['mi', 'pu', 'pl', 'wo'])
+        && num(g.mi, 0, 1000) && num(g.pu, 0, 100000) && num(g.pl, 0, 10000) && num(g.wo, 0, 1000);
+    }
+
+    function boardOk(d) {
+      return d.keys().hasOnly(['v', 'deadline', 'goal', 'people', 'log'])
+        && d.v is number
+        && d.deadline is string && d.deadline.size() == 10
+        && goalOk(d.goal)
+        && d.people is list && d.people.size() <= 12
+        && d.log is list && d.log.size() <= 2000;
+    }
+
+    match /challenges/{room} {
+      allow get: if isBoard(room);
+      allow list: if false;
+      allow create, update: if isBoard(room) && boardOk(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
